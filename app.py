@@ -181,7 +181,7 @@ if submitted:
 
     try:
         res = requests.post(
-            "http://127.0.0.1:8000/api/v1/recommendation/",
+            "https://fitness-rs-api-781714147020.asia-southeast2.run.app/api/v1/recommendation/",
             json=payload,
             timeout=30,
         )
