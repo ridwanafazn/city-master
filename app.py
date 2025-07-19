@@ -3,7 +3,11 @@ import streamlit.components.v1 as components
 import requests
 import pandas as pd
 
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="Jymz",        
+    page_icon="💪",           
+    layout="wide"
+)
 st.title("Workout Recommendation")
 
 # ========== DATA (tabel referensi) ==========
