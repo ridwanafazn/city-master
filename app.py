@@ -2,6 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import requests
 import pandas as pd
+import base64
 
 st.set_page_config(
     page_title="Jymz",        
@@ -200,22 +201,24 @@ if "recommendation" in st.session_state:
     data = st.session_state.recommendation
 
     # ----------- RESULT SUMMARY -----------
-    st.markdown("## <span style='color: white;'>Result Summary</span>", unsafe_allow_html=True)
+    st.markdown("## <span style='color: white;'>Summary</span>", unsafe_allow_html=True)
     st.markdown("<hr style='border: 1px solid white; margin-top: 0.5rem; margin-bottom: 1rem;'>", unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("BMI", f"{data['bmi']:.1f}")
-    c2.metric("Category", data["bmi_category"].title())
-    c3.metric("Split Type", data["split_type"].title().replace(" ", ""))
+    summary_data = {
+        "BMI": [f"{data['bmi']:.1f}"],
+        "Category": [data["bmi_category"].title()],
+        "Split Type": [data["split_type"].title().replace(" ", "")],
+    }
 
-    # ----------- WEEKLY SCHEDULE -----------
-    st.markdown("### <span style='color: white;'>Weekly Focus</span>", unsafe_allow_html=True)
-    schedule_df = pd.DataFrame(
-        [(k.replace('day_', 'Day '), v.title()) for k, v in data["schedule"].items()],
-        columns=["Day", "Focus"]
-    )
+    # Tambahkan fokus mingguan ke dalam tabel
+    for k, v in data["schedule"].items():
+        day = k.replace("day_", "Day ")
+        summary_data[day] = [v.title()]
+
+    summary_df = pd.DataFrame(summary_data)
+
     st.dataframe(
-        schedule_df.style.set_properties(**{
+        summary_df.style.set_properties(**{
             'text-align': 'left',
             'color': 'white',
             'background-color': '#0e1117',
@@ -226,47 +229,29 @@ if "recommendation" in st.session_state:
         use_container_width=True
     )
 
+
     # ----------- DAILY SPLIT OVERVIEW -----------
-    st.markdown("### <span style='color: white;'>📅 Training Split Overview</span>", unsafe_allow_html=True)
-
-    # Map Day → data
-    day_map    = {f"Day {d['day']}": d for d in data["days"]}
-    day_labels = list(day_map.keys())
-
-    # Dropdown (placeholder “Choose Day…”)
-    default_day = st.session_state.get("chosen_day", "Choose Day…")
-    day_choice  = st.selectbox(
-        "Select a day to view details",
-        options=["Choose Day…"] + day_labels,
-        index=0 if default_day == "Choose Day…" else day_labels.index(default_day) + 1,
-    )
-    st.session_state.chosen_day = day_choice  # simpan pilihan
-
-    # Hanya render jika user sudah memilih day
-    if day_choice != "Choose Day…":
-        selected_day = day_map[day_choice]
+    for selected_day in data["days"]:
+        day_title = f"Day {selected_day['day']} {selected_day['day_focus'].title()}"
 
         st.markdown(
-            f"#### <span style='color: white;'>{day_choice}: "
-            f"{selected_day['day_focus'].title()}</span>",
+            f"#### <span style='color: white;'>{day_title}</span>",
             unsafe_allow_html=True,
         )
 
-        # --------- siapkan baris tabel + thumbnail ----------
         table_rows_html = ""
         for ex in selected_day["exercises"]:
             table_rows_html += f"""
             <tr>
-            <td>{ex['exercise_name'].title()}</td>
-            <td>{ex['body_part'].title()}</td>
-            <td>{', '.join(eq.title() for eq in ex['equipment'])}</td>
-            <td>{', '.join(m.title() for m in ex['primary_muscle'])}</td>
-            <td>{', '.join(m.title() for m in ex['secondary_muscle'])}</td>
-            <td style='text-align:center;'><img src="{ex['exercise_image']}" width="240"></td>
+                <td>{ex['exercise_name'].title()}</td>
+                <td>{ex['body_part'].title()}</td>
+                <td>{', '.join(eq.title() for eq in ex['equipment'])}</td>
+                <td>{', '.join(m.title() for m in ex['primary_muscle'])}</td>
+                <td>{', '.join(m.title() for m in ex['secondary_muscle'])}</td>
+                <td style='text-align:center;'><img src="{ex['exercise_image']}" style="max-width:150px; max-height:130px;"></td>
             </tr>
             """
 
-        # --------- render tabel HTML ----------
         st.markdown(
             f"""
             <style>
@@ -301,5 +286,4 @@ if "recommendation" in st.session_state:
             """,
             unsafe_allow_html=True,
         )
-    else:
-        st.info("Select a day from the dropdown to see its workout details.")
+
