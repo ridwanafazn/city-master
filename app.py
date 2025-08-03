@@ -3,14 +3,18 @@ import streamlit.components.v1 as components
 import requests
 import pandas as pd
 import base64
-
+import re
 
 st.set_page_config(
     page_title="Jymz",        
     page_icon="💪"
 )
 
-st.title("Workout Recommendation")
+st.title("Fitness recommendation.")
+st.markdown(
+    '<p style="font-size:15px; color:gray; margin-top:-10px;">build w/ rule-based & genetic optimization by. ridwanafazn</p>', 
+    unsafe_allow_html=True
+)
 
 # ========== DATA (tabel referensi) ==========
 BODY_PARTS = {
@@ -126,7 +130,7 @@ mode_options = [
     "Single focus day"
 ]
 
-selected_mode = st.selectbox("Generate Program", mode_options)
+selected_mode = st.selectbox("", mode_options)
 
 if selected_mode != "Choose generate mode ...":
     st.session_state.recommendation_type = selected_mode
@@ -161,28 +165,28 @@ with st.form("input_form"):
 
         # ----- KIRI : User Data -----
         if st.session_state.recommendation_type == "Weekly schedule program":
-            gender_label = st.selectbox("Gender", ["Male", "Female"])
+            gender_label = st.selectbox("Gender / jenis kelamin *", ["Male", "Female"])
             gender = gender_label.lower()
 
-        height_cm = st.number_input("Height (cm)", min_value=120.0, max_value=220.0, value=165.0, step=0.5)
-        weight_kg = st.number_input("Weight (kg)", min_value=35.0, max_value=200.0, value=55.0, step=0.5)
+        height_cm = st.number_input("Height / tinggi badan (cm) *", min_value=120.0, max_value=220.0, value=170.0, step=0.5)
+        weight_kg = st.number_input("Weight / berat badan (kg) *", min_value=35.0, max_value=200.0, value=55.0, step=0.5)
 
         # ----- KANAN : Exercise Preferences -----
         preferred_body_part = st.multiselect(
-            label="Preferred Body Parts (optional)",
+            label="Preferred Body Parts / preferensi bagian tubuh",
             options=[bp.title() for bp in BODY_PARTS.keys()]
         )
         preferred_body_part = [bp.lower() for bp in preferred_body_part]
 
         preferred_equipment = st.multiselect(
-            label="Preferred Equipment (optional)",
+            label="Preferred Equipment / preferensi alat",
             options=[e.title() for e in EQUIPMENTS]
         )
 
         if st.session_state.recommendation_type == "Weekly schedule program":
             days_options = ["Choose..."] + [1, 2, 3, 4, 5]
             available_days_choice = st.selectbox(
-                "Available days per week",
+                "Available days per week / jumlah latihan dalam satu pekan *",
                 options=days_options,
                 index=0
             )
@@ -195,13 +199,25 @@ with st.form("input_form"):
                 day_focus = selected_focus.lower()
 
         injuries_display = st.multiselect(
-            label="Select injured areas (optional)",
+            label="Injured areas / bagian cedera",
             options=INJURY_OPTIONS
         )
         injuries = [i.lower().replace(" ", "_") for i in injuries_display]
 
         # Tombol submit utama
         submitted = st.form_submit_button("Get Recommendation")
+
+        st.markdown(
+            """
+            <style>
+            div.stButton > button:first-child {
+                width: 100%;
+                display: block;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
         if submitted:
             if st.session_state.recommendation_type == "Single focus day" and day_focus is None:
@@ -229,7 +245,7 @@ with st.form("input_form"):
                 with st.spinner("Generating weekly recommendation..."):
                     try:
                         res = requests.post(
-                            "http://127.0.0.1:8000/api/v1/recommendation/",
+                            "https://fitness-rs-api-781714147020.asia-southeast2.run.app/api/v1/recommendation/",
                             json=payload,
                             timeout=30,
                         )
@@ -251,7 +267,7 @@ with st.form("input_form"):
                 with st.spinner("Generating daily recommendation..."):
                     try:
                         res = requests.post(
-                            "http://127.0.0.1:8000/api/v1/recommendation/by-focus",
+                            "https://fitness-rs-api-781714147020.asia-southeast2.run.app/api/v1/recommendation/by-focus",
                             json=payload,
                             timeout=30,
                         )
@@ -269,14 +285,62 @@ if "recommendation" in st.session_state:
     is_weekly = "schedule" in data and "days" in data
 
 
+    VALID_FOCUS = [
+        "fullbody", "upper", "lower", "legs", "push", "pull", "cardio", "neck", "shoulders",
+        "chest", "back", "abs", "biceps", "triceps", "forearms", "glutes", "quadriceps",
+        "hamstrings", "calves"
+    ]
+
+    def is_cardio_focus(focus):
+        return focus.strip().lower() == "cardio"
+    def get_range_html(focus):
+        if is_cardio_focus(focus):
+            return """
+            <span style='color: #00e0ff; font-size: 0.85rem; margin-left: 20px;'>
+            Durasi: <strong>30–60 menit</strong>
+            </span>
+            """
+        else:
+            return """
+            <span style='color: #00ff88; font-size: 0.85rem; margin-left: 20px;'>
+            Repetisi: <strong>8–12</strong> &nbsp; | &nbsp;
+            Set: <strong>3–4</strong> &nbsp; | &nbsp;
+            Beban: <strong>0–5 kg</strong>
+            </span>
+            """
+
+
     if is_weekly:
         st.markdown("## <span style='color: white;'>Summary</span>", unsafe_allow_html=True)
         st.markdown("<hr style='border: 1px solid white; margin-top: 0.5rem; margin-bottom: 1rem;'>", unsafe_allow_html=True)
+        
+        def normalize_category(cat):
+            cat = re.sub(r'\s+', ' ', cat)
+            cat = cat.strip().lower()
+            return cat
+        def get_bmi_category_explanation(category):
+            category = normalize_category(category)
+            if category == "underweight":
+                return "Berat badan kurang – bisa disebabkan kurang gizi atau metabolisme cepat."
+            elif category == "normal":
+                return "Ideal – proporsi tinggi dan berat seimbang."
+            elif category == "overweight":
+                return "Berat badan berlebih – mulai meningkatkan risiko kesehatan."
+            elif category in ("obese i", "obese ii", "obese iii"):
+                return "Obesitas – risiko tinggi penyakit seperti jantung dan diabetes."
+            return "Tidak diketahui"
+
 
         summary_data = {
-            "BMI": [f"{data['bmi']:.1f}"],
-            "Category": [data["bmi_category"].title()],
-            "Split Type": [data["split_type"].title().replace(" ", "")]
+            "BMI": [
+                f"<span title='Body Mass Index (BMI) adalah cara menghitung berat badan ideal berdasarkan tinggi dan berat badan'>{data['bmi']:.1f}</span>"
+            ],
+            "Category": [
+                f"<span title='{data['bmi_category'].title()} – {get_bmi_category_explanation(data['bmi_category'])}'>{data['bmi_category'].title()}</span>"
+            ],
+            "Split Type": [
+                f"<span title='Split Type adalah pembagian fokus otot per hari dalam program latihan.'>{data['split_type'].title().replace(' ', '')}</span>"
+            ]
         }
 
         for k, v in data["schedule"].items():
@@ -284,25 +348,49 @@ if "recommendation" in st.session_state:
             summary_data[day] = [v.title()]
 
         summary_df = pd.DataFrame(summary_data)
-        st.dataframe(
-            summary_df.style.set_properties(**{
-                'text-align': 'left',
-                'color': 'white',
-                'background-color': '#0e1117',
-                'border-color': 'white',
-                'font-size': '0.95rem'
-            }),
-            hide_index=True,
-            use_container_width=True
+
+        # Tampilkan menggunakan HTML agar tooltip (title) bisa bekerja
+        st.markdown(
+            """
+            <style>
+                table.summary-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 0.95rem;
+                    background-color: #0e1117;
+                    color: white;
+                }
+                .summary-table th, .summary-table td {
+                    border: 1px solid white;
+                    padding: 6px 8px;
+                    text-align: left;
+                }
+                .summary-table th {
+                    background-color: #1a1a1a;
+                }
+            </style>
+            """,
+            unsafe_allow_html=True
         )
+
+        st.markdown(
+            summary_df.to_html(classes="summary-table", escape=False, index=False),
+            unsafe_allow_html=True
+        )
+        
+
 
         # ----------- DAILY SPLIT OVERVIEW -----------
         for selected_day in data["days"]:
-            day_title = f"Day {selected_day['day']} {selected_day['day_focus'].title()}"
-
+            focus = selected_day['day_focus']
+            day_title = f"Day {selected_day['day']} {focus.title()}"
+            range_html = get_range_html(focus)
             st.markdown(
-                f"#### <span style='color: white;'>{day_title}</span>",
-                unsafe_allow_html=True,
+                f"""
+                <h4 style='color: white; display: inline;'>{day_title}</h4>
+                {range_html}
+                """,
+                unsafe_allow_html=True
             )
 
             table_rows_html = ""
@@ -322,16 +410,40 @@ if "recommendation" in st.session_state:
                 f"""
                 <style>
                 table.exercise-table {{
-                    border-collapse: collapse; width: 100%;
+                    border-collapse: separate;  /* agar border-radius berfungsi */
+                    border-spacing: 0;
+                    width: 100%;
+                    background-color: #b2b2b2;
+                    color: #000;
+                    border-radius: 10px;
+                    overflow: hidden;
                 }}
+
                 .exercise-table th, .exercise-table td {{
-                    border: 1px solid #444;
+                    border: 1px solid #151515;
                     padding: 6px 8px;
                     font-size: 0.9rem;
-                    color: #fff;
                     vertical-align: top;
                 }}
-                .exercise-table th {{ background: #222; }}
+
+                .exercise-table th {{
+                    background: #ddd;
+                    color: #000;
+                }}
+
+                /* Rounded corners */
+                .exercise-table thead tr:first-child th:first-child {{
+                    border-top-left-radius: 12px;
+                }}
+                .exercise-table thead tr:first-child th:last-child {{
+                    border-top-right-radius: 12px;
+                }}
+                .exercise-table tbody tr:last-child td:first-child {{
+                    border-bottom-left-radius: 12px;
+                }}
+                .exercise-table tbody tr:last-child td:last-child {{
+                    border-bottom-right-radius: 12px;
+                }}
                 </style>
 
                 <table class="exercise-table">
@@ -352,6 +464,7 @@ if "recommendation" in st.session_state:
                 """,
                 unsafe_allow_html=True,
             )
+
 
     elif is_daily:
         st.markdown("## <span style='color: white;'>Daily Recommendation</span>", unsafe_allow_html=True)
@@ -376,16 +489,40 @@ if "recommendation" in st.session_state:
             f"""
             <style>
             table.exercise-table {{
-                border-collapse: collapse; width: 100%;
+                border-collapse: separate;  /* ubah dari collapse ke separate agar border-radius berfungsi */
+                border-spacing: 0;          /* hilangkan jarak antar sel */
+                width: 100%;
+                background-color: #b2b2b2;
+                color: #000;
+                border-radius: 10px;
+                overflow: hidden;           /* biar kontennya mengikuti radius */
             }}
+
             .exercise-table th, .exercise-table td {{
-                border: 1px solid #444;
+                border: 1px solid #151515;
                 padding: 6px 8px;
                 font-size: 0.9rem;
-                color: #fff;
                 vertical-align: top;
             }}
-            .exercise-table th {{ background: #222; }}
+
+            .exercise-table th {{
+                background: #ddd;
+                color: #000;
+            }}
+
+            /* Supaya sudut betul-betul rounded */
+            .exercise-table thead tr:first-child th:first-child {{
+                border-top-left-radius: 12px;
+            }}
+            .exercise-table thead tr:first-child th:last-child {{
+                border-top-right-radius: 12px;
+            }}
+            .exercise-table tbody tr:last-child td:first-child {{
+                border-bottom-left-radius: 12px;
+            }}
+            .exercise-table tbody tr:last-child td:last-child {{
+                border-bottom-right-radius: 12px;
+            }}
             </style>
 
             <table class="exercise-table">
