@@ -169,7 +169,7 @@ with st.form("input_form"):
             gender = gender_label.lower()
 
         height_cm = st.number_input("Height / tinggi badan (cm) *", min_value=120.0, max_value=220.0, value=170.0, step=0.5)
-        weight_kg = st.number_input("Weight / berat badan (kg) *", min_value=35.0, max_value=200.0, value=55.0, step=0.5)
+        weight_kg = st.number_input("Weight / berat badan (kg) *", min_value=35.0, max_value=200.0, value=65.0, step=0.5)
 
         # ----- KANAN : Exercise Preferences -----
         preferred_body_part = st.multiselect(
@@ -224,6 +224,18 @@ with st.form("input_form"):
                 st.warning("Please select a focus area for your single day workout.")
                 st.stop()
             bmi = weight_kg / ((height_cm / 100) ** 2)
+            
+            if bmi < 18.5:
+                bmi_category = "Underweight"
+            elif bmi < 25:
+                bmi_category = "Normal"
+            elif bmi < 30:
+                bmi_category = "Overweight"
+            else:
+                bmi_category = "Obese"
+
+            st.session_state.bmi = bmi
+            st.session_state.bmi_category = bmi_category
 
             if st.session_state.recommendation_type == "Weekly schedule program":
                 if available_days_choice == "Choose...":
@@ -470,7 +482,29 @@ if "recommendation" in st.session_state:
         st.markdown("## <span style='color: white;'>Daily Recommendation</span>", unsafe_allow_html=True)
         st.markdown("<hr style='border: 1px solid white; margin-top: 0.5rem; margin-bottom: 1rem;'>", unsafe_allow_html=True)
 
-        st.markdown(f"**Focus:** {data['day_focus'].title()}")
+        summary_table_html = f"""
+        <table style="width:100%; border-collapse: collapse; font-size: 0.95rem; margin-bottom: 1rem; color: white;">
+            <thead>
+                <tr style="background-color: #1a1a1a;">
+                    <th style="border: 1px solid white; padding: 6px 8px;">Focus</th>
+                    <th style="border: 1px solid white; padding: 6px 8px;">BMI</th>
+                    <th style="border: 1px solid white; padding: 6px 8px;">BMI Category</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="border: 1px solid white; padding: 6px 8px;">{data['day_focus'].title()}</td>
+                    <td style="border: 1px solid white; padding: 6px 8px;">{st.session_state.bmi:.1f}</td>
+                    <td style="border: 1px solid white; padding: 6px 8px;">{st.session_state.bmi_category}</td>
+                </tr>
+            </tbody>
+        </table>
+        """
+
+        st.markdown(summary_table_html, unsafe_allow_html=True)
+
+        st.markdown("<hr style='border: 1px solid white; margin-top: 0.5rem; margin-bottom: 1rem;'>", unsafe_allow_html=True)
+
 
         table_rows_html = ""
         for ex in data["exercises"]:
